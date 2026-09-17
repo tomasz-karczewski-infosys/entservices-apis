@@ -141,7 +141,9 @@ namespace WPEFramework
             // @text onPowerModeChanged
             // @param currentState: Current Power State
             // @param newState: New Power State
-            virtual void OnPowerModeChanged(const PowerState currentState, const PowerState newState) {};
+            // @param reason: as provided by latest SetPowerState; should be 'DeepSleep timedout' in case of power state resulting from deep sleep wakeup via timer
+            // @param requestors: only provided in case 'reason' value was 'DeepSleep timedout'. Then, it will be a list of name(s) of the client(s) that requested the wakeup action; can single name or a space-separated list.
+            virtual void OnPowerModeChanged(const PowerState currentState, const PowerState newState, const string& reason, const string &requestors) {};
         };
         virtual Core::hresult Register(IModeChangedNotification* notification ) = 0;
         virtual Core::hresult Unregister(const IModeChangedNotification* notification ) = 0;
@@ -183,6 +185,28 @@ namespace WPEFramework
          };
          virtual Core::hresult Register(IThermalModeChangedNotification* notification ) = 0;
          virtual Core::hresult Unregister(const IThermalModeChangedNotification* notification ) = 0;
+
+        // @event
+        struct EXTERNAL IPowerModeChangeAcknowledgementRequested : virtual public Core::IUnknown
+        {
+            enum { ID = ID_POWER_MANAGER_NOTIFICATION_MODE_CHANGE_ACK };
+            // @brief Power mode change acknowledgement requested event. Emitted once the power mode change
+            //        pre-change negotiation phase has finished, requesting all clients registered via
+            //        `AddPowerModeChangeAcknowledgementClient` to acknowledge (via `PowerModeChangeAcknowledgement`)
+            //        before the actual power mode change is applied.
+            // @text onPowerModeChangeAcknowledgementRequested
+            // @param currentState: Current Power State
+            // @param newState: Changing power state to this New Power State
+            // @param transactionId: transactionId to be used when invoking PowerModeChangeAcknowledgement API
+            // @param reason: Reason for the power state change, as provided in the triggering SetPowerState invocation
+            virtual void OnPowerModeChangeAcknowledgementRequested(const PowerState currentState, const PowerState newState, const int transactionId, const string &reason) {};
+        };
+        // @brief Register for Power Mode change acknowledgement requested event
+        virtual Core::hresult Register(IPowerModeChangeAcknowledgementRequested* notification ) = 0;
+        // @brief Unregister for Power Mode change acknowledgement requested event
+        //       IMPORTANT: If client is also engaged in power mode change acknowledgement operation (requested via AddPowerModeChangeAcknowledgementClient API),
+        //                  make sure to disengage (using RemovePowerModeChangeAcknowledgementClient API) before calling Unregister.
+        virtual Core::hresult Unregister(const IPowerModeChangeAcknowledgementRequested* notification ) = 0;
 
         /** Engage a client in power mode change operation. */
         // @text addPowerModePreChangeClient
@@ -325,7 +349,8 @@ namespace WPEFramework
         // @param clientId: Unique identifier for the client, as received in AddPowerModePreChangeClient
         // @param transactionId: transaction id as received in OnPowerModePreChange
         // @param delayPeriod: delay in seconds
-        virtual Core::hresult DelayPowerModeChangeBy(const uint32_t clientId , const int transactionId , const int delayPeriod ) = 0;
+        // @param renegotiateAfterwards: if true, the negotiation round must be restarted after given period, asking all the clients again
+        virtual Core::hresult DelayPowerModeChangeBy(const uint32_t clientId , const int transactionId , const int delayPeriod, const bool renegotiateAfterwards ) = 0;
 
         /** Get the Wakeup Time in seconds */
         // @text getTimeSinceWakeup
@@ -334,6 +359,77 @@ namespace WPEFramework
         // @retval ErrorCode::ERROR_NONE: Indicates success
         // @retval ErrorCode::ERROR_GENERAL: Indicates failure
         virtual Core::hresult GetTimeSinceWakeup(TimeSinceWakeup &timeSinceWakeup /* @out */) = 0;
+
+        /** Schedule a deep sleep wakeup at a specific time */
+        // @text scheduleDeepSleepWakeup
+        // @brief Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp.
+        //        The device will transition to POWER_STATE_STANDBY (ActiveStandby).
+        // @param unixTime: Unix timestamp (seconds since epoch) when device should wake up
+        // @param requestorId: Unique identifier of the client scheduling the wakeup (alphanumeric + underscore + hyphen)
+        // @retval ErrorCode::ERROR_NONE: Indicates success
+        // @retval ErrorCode::ERROR_INVALID_PARAMETER: Invalid requestorId (contains whitespace or invalid characters)
+        // @retval ErrorCode::ERROR_GENERAL: Indicates failure
+        virtual Core::hresult ScheduleDeepSleepWakeup(const uint64_t unixTime, const string& requestorId) = 0;
+
+        /** Cancel previously scheduled deep sleep wakeup(s) */
+        // @text cancelScheduledDeepSleepWakeups
+        // @brief Cancel previously scheduled deep sleep wakeup(s) registered via ScheduleDeepSleepWakeup.
+        //        Both parameters are optional filters used together to select which schedule(s) to remove:
+        //        - unixTime != 0 and requestorId non-empty: cancel that exact schedule
+        //        - unixTime == 0 and requestorId non-empty: cancel all schedules for that requestor
+        //        - unixTime != 0 and requestorId == "": cancel all schedules at that time, any requestor
+        //        - unixTime == 0 and requestorId == "": cancel every scheduled wakeup
+        //        This API never inspects or special-cases the current power state; if invoked while the
+        //        device is in deep sleep (which should not normally be possible), it behaves identically
+        //        to any other state - no special logic is applied.
+        // @param unixTime: Unix timestamp (seconds since epoch) to match; 0 = match any time
+        // @param requestorId: Unique identifier of the client that scheduled the wakeup; empty = match any requestor
+        // @retval ErrorCode::ERROR_NONE: Indicates success - at least one matching schedule was found and removed
+        // @retval ErrorCode::ERROR_INVALID_PARAMETER: Invalid requestorId (contains invalid characters), OR no
+        //         matching schedule(s) were found for the given (unixTime, requestorId) combination - including
+        //         attempting to cancel an already-expired/already-fired schedule. Callers must treat this as a
+        //         normal, expected outcome (e.g. racing a cancel against the wakeup firing) and handle it
+        //         accordingly, rather than as an unexpected failure.
+        // @retval ErrorCode::ERROR_GENERAL: Indicates failure to persist the updated schedule list
+        virtual Core::hresult CancelScheduledDeepSleepWakeups(const uint64_t unixTime, const string& requestorId) = 0;
+
+        /** Register a client for the power mode change acknowledgement phase. */
+        // @text addPowerModeChangeAcknowledgementClient
+        // @brief Register a client to participate in the power mode change acknowledgement phase.
+        //        Once the (existing) power mode pre-change negotiation phase finishes, an `OnPowerModeChangeAcknowledgementRequested`
+        //        event is emitted. Registered clients must then call `PowerModeChangeAcknowledgement` as soon as they are
+        //        prepared for the power mode change. Only when all registered clients have acknowledged will the
+        //        actual power mode change proceed.
+        //
+        //        IMPORTANT: ** IT'S A BUG IF CLIENT `Unregister` FROM `IPowerModeChangeAcknowledgementRequested` BEFORE DISENGAGING ITSELF **
+        //                   always make sure to call `RemovePowerModeChangeAcknowledgementClient` before calling `Unregister` from `IPowerModeChangeAcknowledgementRequested`.
+        //
+        // @param clientName: Name of the client
+        // @param acknowledgeClientId: Unique identifier for the client to be used while acknowledging the power mode change (`PowerModeChangeAcknowledgement`)
+        virtual Core::hresult AddPowerModeChangeAcknowledgementClient(const string& clientName , uint32_t& acknowledgeClientId /* @out */) = 0;
+
+        /** Disengage a client from the power mode change acknowledgement phase. */
+        // @text removePowerModeChangeAcknowledgementClient
+        // @brief Removes a registered client from participating in power mode change acknowledgements.
+        //        NOTE client will still continue to receive acknowledgement requested notifications.
+        // @param acknowledgeClientId: Unique identifier for the client. See `AddPowerModeChangeAcknowledgementClient`
+        virtual Core::hresult RemovePowerModeChangeAcknowledgementClient(const uint32_t acknowledgeClientId ) = 0;
+
+        /** Acknowledge readiness for a power mode change during the acknowledgement phase. */
+        // @text powerModeChangeAcknowledgement
+        // @brief Acknowledge readiness for the power mode change requested via `OnPowerModeChangeAcknowledgementRequested`.
+        //        Must be called by every client registered via `AddPowerModeChangeAcknowledgementClient`, as soon as
+        //        that client is prepared for the power mode change. Only when all registered clients have acknowledged
+        //        will the power mode change proceed.
+        // @param acknowledgeClientId: Unique identifier for the client, as received in AddPowerModeChangeAcknowledgementClient
+        // @param transactionId: transaction id as received in OnPowerModeChangeAcknowledgementRequested
+        virtual Core::hresult PowerModeChangeAcknowledgement(const uint32_t acknowledgeClientId , const int transactionId ) = 0;
+
+        /** Gets the most recent reboot reason. */
+        // @text getRebootReason
+        // @brief Get the most recent reboot reason string.
+        // @param reason: returns the most recent reboot reason
+        virtual Core::hresult GetRebootReason(std::string& reason /* out */);
     };
 
 } // namespace Exchange
