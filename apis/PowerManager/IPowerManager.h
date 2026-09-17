@@ -141,6 +141,8 @@ namespace WPEFramework
             // @text onPowerModeChanged
             // @param currentState: Current Power State
             // @param newState: New Power State
+            // @param reason: as provided by latest SetPowerState; should be 'DeepSleep timedout' in case of power state resulting from deep sleep wakeup via timer
+            // @param requestors: only provided in case 'reason' value was 'DeepSleep timedout'. Then, it will be a list of name(s) of the client(s) that requested the wakeup action; can single name or a space-separated list.
             virtual void OnPowerModeChanged(const PowerState currentState, const PowerState newState, const string& reason, const string &requestors) {};
         };
         virtual Core::hresult Register(IModeChangedNotification* notification ) = 0;
@@ -347,6 +349,7 @@ namespace WPEFramework
         // @param clientId: Unique identifier for the client, as received in AddPowerModePreChangeClient
         // @param transactionId: transaction id as received in OnPowerModePreChange
         // @param delayPeriod: delay in seconds
+        // @param renegotiateAfterwards: if true, the negotiation round must be restarted after given period, asking all the clients again
         virtual Core::hresult DelayPowerModeChangeBy(const uint32_t clientId , const int transactionId , const int delayPeriod, const bool renegotiateAfterwards ) = 0;
 
         /** Get the Wakeup Time in seconds */

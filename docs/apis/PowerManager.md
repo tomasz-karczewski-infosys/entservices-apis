@@ -269,7 +269,7 @@ None
 | params.clientId | integer | Unique identifier for the client, as received in AddPowerModePreChangeClient |
 | params.transactionId | int | transaction id as received in OnPowerModePreChange |
 | params.delayPeriod | int | delay in seconds |
-| params.renegotiateAfterwards | bool |  |
+| params.renegotiateAfterwards | bool | if true, the negotiation round must be restarted after given period, asking all the clients again |
 ### Results
 | Name | Type | Description |
 | :-------- | :-------- | :-------- |
@@ -1240,8 +1240,8 @@ Power mode changed
 | params | object |  |
 | params.currentState | string | Current Power State. Possible values: UNKNOWN, OFF, STANDBY, ON, LIGHT_SLEEP, DEEP_SLEEP |
 | params.newState | string | New Power State. Possible values: UNKNOWN, OFF, STANDBY, ON, LIGHT_SLEEP, DEEP_SLEEP |
-| params.reason | string | Reason for the power state change, as provided in the triggering SetPowerState invocation |
-| params.requestors | string |  |
+| params.reason | string | as provided by latest SetPowerState; should be 'DeepSleep timedout' in case of power state resulting from deep sleep wakeup via timer |
+| params.requestors | string | only provided in case 'reason' value was 'DeepSleep timedout'. Then, it will be a list of name(s) of the client(s) that requested the wakeup action; can single name or a space-separated list. |
 
 ### Examples
 
