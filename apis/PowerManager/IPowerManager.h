@@ -363,8 +363,7 @@ namespace WPEFramework
         /** Schedule a deep sleep wakeup at a specific time */
         // @text scheduleDeepSleepWakeup
         // @brief Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp.
-        //        The device will transition to POWER_STATE_STANDBY (ActiveStandby). Note: the requestor
-        //        info is not yet delivered via OnPowerModeChanged; that will be added under ONEM-42980.
+        //        The device will transition to POWER_STATE_STANDBY (ActiveStandby).
         // @param unixTime: Unix timestamp (seconds since epoch) when device should wake up
         // @param requestorId: Unique identifier of the client scheduling the wakeup (alphanumeric + underscore + hyphen)
         // @retval ErrorCode::ERROR_NONE: Indicates success

@@ -75,7 +75,7 @@ The following methods are provided by the IPowerManager Interface:
 | [reboot](#reboot) | Reboot device |
 | [removePowerModeChangeAcknowledgementClient](#removePowerModeChangeAcknowledgementClient) | Removes a registered client from participating in power mode change acknowledgements. NOTE client will still continue to receive acknowledgement requested notifications. |
 | [removePowerModePreChangeClient](#removePowerModePreChangeClient) | Removes a registered client from participating in power mode pre-change operations. NOTE client will still continue to receive pre-change notifications. |
-| [scheduleDeepSleepWakeup](#scheduleDeepSleepWakeup) | Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp. The device will transition to POWER_STATE_STANDBY (ActiveStandby). Note: the requestor info is not yet delivered via OnPowerModeChanged; that will be added under ONEM-42980. |
+| [scheduleDeepSleepWakeup](#scheduleDeepSleepWakeup) | Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp. The device will transition to POWER_STATE_STANDBY (ActiveStandby). |
 | [setPowerState](#setPowerState) | Set Power State |
 | [setTemperatureThresholds](#setTemperatureThresholds) | Set Temperature Thresholds |
 | [setWakeupSourceConfig](#setWakeupSourceConfig) | Set the source configuration for device wakeup |
@@ -937,7 +937,7 @@ curl -H 'content-type:text/plain;' --data-binary '{"jsonrpc": 2.0, "id": 15, "me
 <a id="scheduleDeepSleepWakeup"></a>
 ## *scheduleDeepSleepWakeup*
 
-Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp. The device will transition to POWER_STATE_STANDBY (ActiveStandby). Note: the requestor info is not yet delivered via OnPowerModeChanged; that will be added under ONEM-42980.
+Schedule device to wake from deep sleep to STANDBY state at a specific Unix timestamp. The device will transition to POWER_STATE_STANDBY (ActiveStandby).
 
 ### Events Triggered
 None
